@@ -1,0 +1,234 @@
+#Solution of the set up of common 3-tier architecture using CloudFormation
+#Created resources includes ELB as revery proxy, web EC2 instances with httpd installed on them and security groups
+#Includes Parameters, Mappings, Resources and Output section
+
+Parameters:
+  
+     Region:
+          Description: Enter the region where to launch the resource
+          Type: String
+          
+     EnvironmentType:
+          Description: Enter the environment type
+          Type: String  
+     VPC:
+          Description: Enter the VPC in which EC2 to launch
+          Type: 'AWS::EC2::VPC::Id'
+          
+     Subnet1:
+          Description: Enter the subnet in which EC2 to launch
+          Type: 'AWS::EC2::Subnet::Id'
+          
+     Subnet2:
+          Description: Enter the subnet in which EC2 to launch
+          Type: 'AWS::EC2::Subnet::Id'
+         
+     KeyPair:
+         Description: The key pair name to use to connect to the EC2 instances.
+         Type: String
+         
+     IAMRole:
+         Description: IAM role to be used for connecting to EC2 instances
+         Type: String
+         
+         
+Mappings: 
+    RegionMap: 
+      us-east-1: 
+        dev: 
+           ami: "ami-8ff710e2"
+           instance_type: "r5.4xlarge"         
+        prod: 
+           ami:  "ami-f5f41398"
+           instance_type: "r5.16xlarge"
+              
+      us-west-2: 
+        dev: 
+          ami: "ami-8ff710e2"
+          instance_type:  "r5.4xlarge"
+        prod: 
+          ami: "ami-f5f41398"
+          instance_type: "r5.16xlarge"
+          
+          
+Resources:
+  
+  MyEC2Instance1: 
+    Type: "AWS::EC2::Instance"
+    Properties: 
+      ImageId: !FindInMap [RegionMap, !Ref Region, !Ref EnvironmentType, 'ami']
+      InstanceType: !FindInMap [RegionMap, !Ref Region, !Ref EnvironmentType, 'instance_type']
+      SubnetId: !Ref Subnet1
+      
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: "20"
+          VolumeType: "io1"
+          DeleteOnTermination: False
+          Encrypted: True
+          KmsKeyId: !Ref KeyPair
+          
+      - DeviceName: /dev/sdb
+        Ebs: 
+          VolumeSize: "20"
+          VolumeType: "io1"
+          DeleteOnTermination: False
+          Encrypted: True
+          KmsKeyId: !Ref KeyPair
+
+      SecurityGroupIds:
+        - !Ref MyFirstSecurityGroup
+        
+      IamInstanceProfile: !Ref IAMRole
+
+      Tags: 
+        - 
+          Key: Name
+          Value: MyFirstEC2Instance
+        - 
+          Key: GearID
+          Value: 1234
+
+      UserData: 
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            
+            sudo -i
+            zypper update -y
+            yum install httpd -y
+            service httpd start
+            chkconfig httpd on
+            cd /var/www/html
+            echo "<html><h1>Hello, This is my first EC2 instance</h1></html>" >  index.html
+            
+ #Tagging the created volumes           
+            AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+            AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+            ROOT_VOLUME_IDS=$(aws ec2 describe-instances --region us-east-1 --instance-id $AWS_INSTANCE_ID --output=text --query Reservations[0].Instances[0].BlockDeviceMappings[0].Ebs.VolumeId)
+            EBS_VOLUME_1=$(aws ec2 describe-instances --region us-east-1 --instance-id $AWS_INSTANCE_ID --output=text --query Reservations[0].Instances[0].BlockDeviceMappings[1].Ebs.VolumeId)
+            aws ec2 create-tags --resources $ROOT_VOLUME_IDS --region us-east-1 --tags Key=Name,Value=MyRootEBSVolume 
+            sleep 15s
+            aws ec2 create-tags --resources $EBS_VOLUME_1 --region us-east-1 --tags Key=Name,Value=MyFirstEBSVolume
+                           
+            
+   MyEC2Instance2: 
+        Type: "AWS::EC2::Instance"
+        Properties: 
+          ImageId: !FindInMap [RegionMap, !Ref Region, !Ref EnvironmentType, 'ami']
+          InstanceType: !FindInMap [RegionMap, !Ref Region, !Ref EnvironmentType, 'instance_type']
+          SubnetId: !Ref Subnet1
+          
+          BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeSize: "20"
+              VolumeType: "io1"
+              DeleteOnTermination: False
+              Encrypted: True
+              KmsKeyId: !Ref KeyPair
+              
+          - DeviceName: /dev/sdb
+            Ebs: 
+              VolumeSize: "20"
+              VolumeType: "io1"
+              DeleteOnTermination: False
+              Encrypted: True
+              KmsKeyId: !Ref KeyPair
+
+          SecurityGroupIds:
+            - !Ref MyFirstSecurityGroup
+            
+          IamInstanceProfile: !Ref IAMRole
+
+          Tags: 
+            - 
+              Key: Name
+              Value: MySecondEC2Instance
+            - 
+              Key: GearID
+              Value: 1234
+
+          UserData: 
+            Fn::Base64:
+              !Sub |
+                #!/bin/bash
+                zypper update -y                
+               yum install httpd -y
+                service httpd start
+                chkconfig httpd on
+                cd /var/www/html
+                echo "<html><h1>Hello, This is my second web page</h1></html>" >  index.html
+                
+                AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+                ROOT_VOLUME_IDS=$(aws ec2 describe-instances --region us-east-1 --instance-id $AWS_INSTANCE_ID --output=text --query Reservations[0].Instances[0].BlockDeviceMappings[0].Ebs.VolumeId)
+                EBS_VOLUME_1=$(aws ec2 describe-instances --region us-east-1 --instance-id $AWS_INSTANCE_ID --output=text --query Reservations[0].Instances[0].BlockDeviceMappings[1].Ebs.VolumeId)
+                aws ec2 create-tags --resources $ROOT_VOLUME_IDS --region us-east-1 --tags Key=Name,Value=MyRootEBSVolume 
+                sleep 15s
+                aws ec2 create-tags --resources $EBS_VOLUME_1 --region us-east-1 --tags Key=Name,Value=MyFirstEBSVolume
+
+            
+            
+    MyFirstSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+             GroupDescription: MyFirstSecurityGroup
+             GroupName: MyFirstSecurityGroup
+           
+             SecurityGroupIngress:   
+                  -  FromPort: 22
+                     ToPort: 22
+                     IpProtocol: TCP
+                     CidrIp: 192.168.32.1
+                     Description: Allow SSH from specified server
+                     VpcId: !Ref VPC
+                     
+                  -  FromPort: 80
+                     ToPort: 80
+                     IpProtocol: HTTP
+                     CidrIp: 192.168.32.1
+                     Description: Allow HTTP from specified server
+                     VpcId: !Ref VPC
+                     
+                     
+    MyLoadBalancer:
+      Type: AWS::ElasticLoadBalancing::LoadBalancer
+      Properties:
+         AvailabilityZones:
+          - "us-east-1a"
+        Instances:
+        
+        -   !Ref MyEC2Instance1
+        -   !Ref MyEC2Instance2
+        
+        Listeners:
+        -   InstancePort: "80",
+            InstanceProtocol: "HTTP",
+            LoadBalancerPort: "443",
+            Protocol: "HTTPS"
+          
+        HealthCheck:
+          Target: HTTP:80/
+          HealthyThreshold: '3'
+          UnhealthyThreshold: '5'
+          Interval: '30'
+          Timeout: '5'
+          
+Outputs:
+  InstanceId1:
+    Description: InstanceId of the newly created EC2 Instance1
+    Value: !Ref MyEC2Instance1   
+
+  InstanceId2:
+    Description: InstanceId of the newly created EC2 Instance2
+    Value: !Ref MyEC2Instance2  
+
+  ELB-DNS:
+    Description: DNS name of the load balancer created
+    Value: !GetAtt MyLoadBalancer.DNSName          
+
+
+
+            
