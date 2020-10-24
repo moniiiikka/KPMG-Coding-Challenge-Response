@@ -24,20 +24,20 @@ def get_nested_value(dict_object, key_list):
 key_list = []
 
 #Initialize the nested object
-a = {"a":{"b":{"c":1}}}
+Nested_Obj = {"a":{"b":{"c":1}}}
 
 #Call the get_key_list function and print the value of key_list
-for key in get_key_list(a):
+for key in get_key_list(Nested_Obj):
      print(key)
      
    
-#Some test cases by passing different types of keys in the function get_nested_value
+#Some test cases by passing Nested object and different types of keys in the function get_nested_value
 
-print(get_nested_value(a,key_list))    #1
-print(get_nested_value(a,['bar','a'])) #None
-print(get_nested_value(a,['a','b']))   #{'c': 1}
-print(get_nested_value(a,['b','a']))   #None
-print(get_nested_value(a,['a']))       #{'b': {'c': 1}}
+print(get_nested_value(Nested_Obj,key_list))    #1
+print(get_nested_value(Nested_Obj,['bar','a'])) #None
+print(get_nested_value(Nested_Obj,['a','b']))   #{'c': 1}
+print(get_nested_value(Nested_Obj,['b','a']))   #None
+print(get_nested_value(Nested_Obj,['a']))       #{'b': {'c': 1}}
 
 
         
